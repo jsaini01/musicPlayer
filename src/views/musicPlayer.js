@@ -11,22 +11,91 @@ import {
 import React, {useEffect, useRef, useState} from 'react';
 import Slider from '@react-native-community/slider';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import TrackPlayer, {
+  State,
+  usePlaybackState,
+  useProgress,
+} from 'react-native-track-player';
 import songs from '../views/data';
 
-const {width, heigth} = Dimensions.get('window');
+const {width} = Dimensions.get('window');
+
+// const setPlayer = async () => {
+//   try {
+//     await TrackPlayer.setupPlayer();
+//     await TrackPlayer.add(songs);
+//   } catch (e) {
+//     console.log(e);
+//   }
+// };
+
+// const tooglePlayBack = async playBackState => {
+//   const currentTrack = await TrackPlayer.getCurrentTrack();
+//   if (currentTrack != null) {
+//     if (playBackState === State.Paused) {
+//       await TrackPlayer.play();
+//     } else {
+//       await TrackPlayer.pause();
+//     }
+//   }
+// };
 
 const MusicPlayer = () => {
+  const playBackState = usePlaybackState();
+  const progress = useProgress();
   const [songIndex, setSongIndex] = useState(0);
   const scrollX = useRef(new Animated.Value(0)).current;
+  const songSlider = useRef(null);
+  const [play, setPlay] = useState(true);
 
   useEffect(() => {
+    // setPlayer();
     scrollX.addListener(({value}) => {
       //   console.log('value', `ScrollX : ${value} | Device Width : ${width}`);
       const index = Math.round(value / width);
       setSongIndex(index);
-      //   console.log('index', index);
+      console.log('index', index);
+    });
+
+    TrackPlayer.setupPlayer().then(async () => {
+      console.log('first', 'playing');
+      await TrackPlayer.add(songs);
+
+      TrackPlayer.play();
     });
   }, []);
+
+  const playPause = () => {
+    if (playBackState === 'playing') {
+      TrackPlayer.pause();
+      setPlay(false);
+    } else if (playBackState === 'paused') {
+      TrackPlayer.play();
+      setPlay(true);
+    }
+  };
+  // const playPause = async () => {
+  //   if (play === true) {
+  //     TrackPlayer.setupPlayer().then(async () => {
+  //       console.log('first', 'playing');
+  //       await TrackPlayer.add(songs);
+  //       TrackPlayer.play();
+  //     });
+  //   } else {
+  //     TrackPlayer.reset();
+  //   }
+  // };
+
+  const skipToNext = () => {
+    songSlider.current.scrollToOffset({
+      offset: (songIndex + 1) * width,
+    });
+  };
+  const skipToPrev = () => {
+    songSlider.current.scrollToOffset({
+      offset: (songIndex - 1) * width,
+    });
+  };
 
   const renderSongs = ({item, index}) => {
     return (
@@ -43,6 +112,7 @@ const MusicPlayer = () => {
       <View style={style.mainContainer}>
         {/* image */}
         <Animated.FlatList
+          ref={songSlider}
           renderItem={renderSongs}
           data={songs}
           keyExtractor={item => item.id}
@@ -74,29 +144,51 @@ const MusicPlayer = () => {
         <View>
           <Slider
             style={style.progressBar}
-            value={10}
+            value={progress.position}
             minimumValue={0}
-            maximumValue={100}
+            maximumValue={progress.duration}
             thumbTintColor="#FFD369"
             minimumTrackTintColor="#FFD369"
             maximumTrackTintColor="#FFF"
-            onSlidingComplete={() => {}}
+            onSlidingComplete={async value => {
+              await TrackPlayer.seekTo(value);
+            }}
           />
           {/* music duration */}
           <View style={style.progressLevelDuration}>
-            <Text style={style.progressLableText}>00.00</Text>
-            <Text style={style.progressLableText}>00.00</Text>
+            <Text style={style.progressLableText}>
+              {new Date(progress.position * 1000)
+                .toLocaleTimeString()
+                .substring(3)
+                .replace('AM', '')
+                .replace('PM', '')}
+            </Text>
+            <Text style={style.progressLableText}>
+              {new Date((progress.duration - progress.position) * 1000)
+                .toLocaleTimeString()
+                .substring(3)
+                .replace('AM', '')
+                .replace('PM', '')}
+            </Text>
           </View>
         </View>
         {/* music controls */}
         <View style={style.musicControlsContainer}>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={skipToPrev}>
             <Ionicons name="play-skip-back-outline" size={35} color="#FFD369" />
           </TouchableOpacity>
-          <TouchableOpacity>
-            <Ionicons name="ios-pause-circle" size={75} color="#FFD369" />
+          <TouchableOpacity onPress={playPause}>
+            <Ionicons
+              name={
+                playBackState === 'playing'
+                  ? 'ios-pause-circle'
+                  : 'ios-play-circle'
+              }
+              size={75}
+              color="#FFD369"
+            />
           </TouchableOpacity>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={skipToNext}>
             <Ionicons
               name="play-skip-forward-outline"
               size={35}
